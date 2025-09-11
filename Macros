@@ -128,15 +128,16 @@ Sub BuscarYPegarDatos()
     MsgBox "Proceso terminado"
 End Sub
 
-macro que me interesa 
+///      macro que me interesa 
 
-Sub ExtraerBatch()
+Sub ExtraerBatchFlexible()
     Dim wbPrincipal As Workbook, wsPrincipal As Worksheet
     Dim wbOrigen As Workbook, wsOrigen As Worksheet
     Dim ultimaFilaPrincipal As Long, ultimaFilaOrigen As Long
     Dim i As Long, filaEncontrada As Variant
     Dim pieza As String, batch As String
     Dim operador As String, archivoOrigen As String
+    Dim colNP As Long, colBatch As Long
     
     ' 1. Pedir nombre de operador
     operador = InputBox("Ingrese el nombre del operador:", "Operador")
@@ -151,29 +152,44 @@ Sub ExtraerBatch()
     
     ' 3. Definir libro principal
     Set wbPrincipal = ThisWorkbook
-    Set wsPrincipal = wbPrincipal.Sheets("Hoja1") ' cambia el nombre de hoja si es necesario
+    Set wsPrincipal = wbPrincipal.Sheets("Hoja1") ' cambia el nombre de la hoja
     
     ' 4. Abrir archivo origen
     Set wbOrigen = Workbooks.Open(archivoOrigen)
-    Set wsOrigen = wbOrigen.Sheets(1) ' puedes poner el nombre real de la hoja
+    Set wsOrigen = wbOrigen.Sheets(1) ' cambia si necesitas una hoja específica
     
-    ' 5. Detectar últimas filas
+    ' 5. Buscar las columnas NP y Batch en la fila 1
+    On Error Resume Next
+    colNP = Application.Match("NP", wsOrigen.Rows(1), 0)
+    colBatch = Application.Match("Batch", wsOrigen.Rows(1), 0)
+    On Error GoTo 0
+    
+    If colNP = 0 Or colBatch = 0 Then
+        MsgBox "No se encontró la columna 'NP' o 'Batch' en el archivo origen.", vbCritical
+        wbOrigen.Close SaveChanges:=False
+        Exit Sub
+    End If
+    
+    ' 6. Detectar últimas filas
     ultimaFilaPrincipal = wsPrincipal.Cells(wsPrincipal.Rows.Count, "A").End(xlUp).Row
-    ultimaFilaOrigen = wsOrigen.Cells(wsOrigen.Rows.Count, "A").End(xlUp).Row
+    ultimaFilaOrigen = wsOrigen.Cells(wsOrigen.Rows.Count, colNP).End(xlUp).Row
     
-    ' 6. Recorremos archivo principal
+    ' 7. Recorremos archivo principal
     For i = 2 To ultimaFilaPrincipal
         pieza = wsPrincipal.Cells(i, "A").Value ' "Número Parte" en principal
         
         If pieza <> "" Then
-            ' Buscar NP en origen
-            filaEncontrada = Application.Match(pieza, wsOrigen.Range("A1:A" & ultimaFilaOrigen), 0)
+            ' Buscar pieza en origen (en columna NP detectada)
+            filaEncontrada = Application.Match(pieza, wsOrigen.Range(wsOrigen.Cells(2, colNP), wsOrigen.Cells(ultimaFilaOrigen, colNP)), 0)
             
             If Not IsError(filaEncontrada) Then
-                ' Extraer Batch
-                batch = wsOrigen.Cells(filaEncontrada, "B").Value ' Columna Batch en origen (ajusta si no es B)
+                ' Ajustar índice porque Match empieza desde la fila 2
+                filaEncontrada = filaEncontrada + 1
                 
-                ' Procesar para quitar Y0 y dejar solo números
+                ' Extraer Batch desde la columna encontrada
+                batch = wsOrigen.Cells(filaEncontrada, colBatch).Value
+                
+                ' Procesar para quitar el primer "0" y dejar solo lo que sigue
                 If InStr(batch, "0") > 0 Then
                     batch = Mid(batch, InStr(batch, "0") + 1)
                 End If
@@ -183,5 +199,14 @@ Sub ExtraerBatch()
                 ' Registrar nombre del operador en columna C
                 wsPrincipal.Cells(i, "C").Value = operador
             Else
-                wsPrincipal.Cells(i, "B").Val
+                wsPrincipal.Cells(i, "B").Value = "No encontrado"
+            End If
+        End If
+    Next i
+    
+    ' 8. Cerrar archivo origen
+    wbOrigen.Close SaveChanges:=False
+    
+    MsgBox "Proceso terminado por " & operador, vbInformation
+End Sub
 
