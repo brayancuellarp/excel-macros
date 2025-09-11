@@ -210,3 +210,45 @@ Sub ExtraerBatchFlexible()
     MsgBox "Proceso terminado por " & operador, vbInformation
 End Sub
 
+
+
+Private Sub Worksheet_Change(ByVal Target As Range)
+    Dim colIngreso As Variant, colDias As Variant
+    Dim fila As Long
+    Dim fechaIngreso As Date
+    Dim encabezadoIngreso As String
+    Dim encabezadoDias As String
+    Dim ws As Worksheet
+    
+    Set ws = Me
+    
+    encabezadoIngreso = "Fecha de ingreso"
+    encabezadoDias = "Días transcurridos"
+    
+    ' Buscar las columnas (solo la primera vez funciona rápido)
+    colIngreso = Application.Match(encabezadoIngreso, ws.Rows(1), 0)
+    colDias = Application.Match(encabezadoDias, ws.Rows(1), 0)
+    
+    If IsError(colIngreso) Then Exit Sub ' columna de ingreso no existe
+    colIngreso = CLng(colIngreso)
+    
+    ' Crear columna Días si no existe
+    If IsError(colDias) Then
+        colDias = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column + 1
+        ws.Cells(1, colDias).Value = encabezadoDias
+    Else
+        colDias = CLng(colDias)
+    End If
+    
+    ' Verificar si la celda modificada está en la columna de ingreso
+    If Not Intersect(Target, ws.Columns(colIngreso)) Is Nothing Then
+        For Each c In Intersect(Target, ws.Columns(colIngreso))
+            If IsDate(Trim(c.Value)) Then
+                fechaIngreso = CDate(Trim(c.Value))
+                ws.Cells(c.Row, colDias).Value = Date - fechaIngreso
+            Else
+                ws.Cells(c.Row, colDias).Value = ""
+            End If
+        Next c
+    End If
+End Sub
