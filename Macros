@@ -1,0 +1,129 @@
+//MAcro para filtrar fechas
+Sub CalcularDiasDesdeIngreso()
+    Dim ws As Worksheet
+    Dim ultimaFila As Long
+    Dim colIngreso As Long
+    Dim colDias As Long
+    Dim i As Long
+    Dim encabezadoIngreso As String
+    Dim encabezadoDias As String
+    
+    ' Nombre de los encabezados que debe buscar
+    encabezadoIngreso = "Fecha de ingreso"
+    encabezadoDias = "Días transcurridos"
+    
+    Set ws = ThisWorkbook.Sheets("Hoja1") ' Cambia al nombre real de tu hoja
+    
+    ' Buscar la columna que contiene el encabezado de ingreso
+    On Error Resume Next
+    colIngreso = Application.Match(encabezadoIngreso, ws.Rows(1), 0)
+    colDias = Application.Match(encabezadoDias, ws.Rows(1), 0)
+    On Error GoTo 0
+    
+    ' Si no existe la columna de días, la creamos a la derecha
+    If colDias = 0 Then
+        colDias = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column + 1
+        ws.Cells(1, colDias).Value = encabezadoDias
+    End If
+    
+    ' Verificar que se encontró la columna de ingreso
+    If colIngreso = 0 Then
+        MsgBox "No se encontró la columna '" & encabezadoIngreso & "'", vbExclamation
+        Exit Sub
+    End If
+    
+    ' Última fila con datos
+    ultimaFila = ws.Cells(ws.Rows.Count, colIngreso).End(xlUp).Row
+    
+    ' Calcular los días transcurridos
+    For i = 2 To ultimaFila
+        If IsDate(ws.Cells(i, colIngreso).Value) Then
+            ws.Cells(i, colDias).Value = Date - ws.Cells(i, colIngreso).Value
+        Else
+            ws.Cells(i, colDias).Value = ""
+        End If
+    Next i
+    
+    MsgBox "Cálculo completado."
+End Sub
+
+//  Macro para sacar datos de otro archivo 
+
+Sub BuscarIDporEncabezado()
+    Dim wbOrigen As Workbook, wsOrigen As Worksheet
+    Dim wbDestino As Workbook, wsDestino As Worksheet
+    Dim colID As Long, colDato As Long
+    Dim ultimaFila As Long, filaEncontrada As Variant
+    Dim ID_Buscar As String
+    
+    Set wbDestino = ThisWorkbook
+    Set wsDestino = wbDestino.Sheets("Hoja1")
+    
+    ' Abrir archivo origen
+    Set wbOrigen = Workbooks.Open("C:\Users\angel\Documents\Datos.xlsx")
+    Set wsOrigen = wbOrigen.Sheets("Hoja1")
+    
+    ' Buscar columnas por encabezados en la fila 1
+    colID = Application.Match("ID", wsOrigen.Rows(1), 0)
+    colDato = Application.Match("Nombre", wsOrigen.Rows(1), 0)
+    
+    ' ID que quieres buscar
+    ID_Buscar = wsDestino.Range("A2").Value
+    
+    ' Buscar la fila del ID
+    filaEncontrada = Application.Match(ID_Buscar, wsOrigen.Columns(colID), 0)
+    
+    If Not IsError(filaEncontrada) Then
+        wsDestino.Range("B2").Value = wsOrigen.Cells(filaEncontrada, colDato).Value
+    Else
+        wsDestino.Range("B2").Value = "No encontrado"
+    End If
+    
+    ' Cerrar el archivo origen
+    wbOrigen.Close SaveChanges:=False
+End Sub
+
+\\ Cusqueda y copia 
+Sub BuscarYPegarDatos()
+    Dim wbPrincipal As Workbook, wsPrincipal As Worksheet
+    Dim wbOrigen As Workbook, wsOrigen As Worksheet
+    Dim ultimaFilaPrincipal As Long, ultimaFilaOrigen As Long
+    Dim i As Long, filaEncontrada As Variant
+    Dim pieza As String
+    
+    ' Archivo principal (este donde corre la macro)
+    Set wbPrincipal = ThisWorkbook
+    Set wsPrincipal = wbPrincipal.Sheets("Hoja1") ' cambia el nombre de hoja
+    
+    ' Abrir archivo origen
+    Set wbOrigen = Workbooks.Open("C:\Users\angel\Documents\Datos.xlsx") ' cambia ruta
+    Set wsOrigen = wbOrigen.Sheets("Hoja1") ' cambia el nombre de hoja
+    
+    ' Últimas filas
+    ultimaFilaPrincipal = wsPrincipal.Cells(wsPrincipal.Rows.Count, "A").End(xlUp).Row
+    ultimaFilaOrigen = wsOrigen.Cells(wsOrigen.Rows.Count, "A").End(xlUp).Row
+    
+    ' Recorrer todas las piezas del archivo principal (columna A)
+    For i = 2 To ultimaFilaPrincipal
+        pieza = wsPrincipal.Cells(i, "A").Value
+        
+        If pieza <> "" Then
+            ' Buscar pieza en archivo origen (columna A)
+            filaEncontrada = Application.Match(pieza, wsOrigen.Range("A1:A" & ultimaFilaOrigen), 0)
+            
+            If Not IsError(filaEncontrada) Then
+                ' Copiar columnas B, C, D desde origen al principal
+                wsPrincipal.Cells(i, "B").Value = wsOrigen.Cells(filaEncontrada, "B").Value
+                wsPrincipal.Cells(i, "C").Value = wsOrigen.Cells(filaEncontrada, "C").Value
+                wsPrincipal.Cells(i, "D").Value = wsOrigen.Cells(filaEncontrada, "D").Value
+            Else
+                wsPrincipal.Cells(i, "B").Value = "No encontrado"
+            End If
+        End If
+    Next i
+    
+    ' Cerrar archivo origen sin guardar
+    wbOrigen.Close SaveChanges:=False
+    
+    MsgBox "Proceso terminado"
+End Sub
