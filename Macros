@@ -127,3 +127,61 @@ Sub BuscarYPegarDatos()
     
     MsgBox "Proceso terminado"
 End Sub
+
+macro que me interesa 
+
+Sub ExtraerBatch()
+    Dim wbPrincipal As Workbook, wsPrincipal As Worksheet
+    Dim wbOrigen As Workbook, wsOrigen As Worksheet
+    Dim ultimaFilaPrincipal As Long, ultimaFilaOrigen As Long
+    Dim i As Long, filaEncontrada As Variant
+    Dim pieza As String, batch As String
+    Dim operador As String, archivoOrigen As String
+    
+    ' 1. Pedir nombre de operador
+    operador = InputBox("Ingrese el nombre del operador:", "Operador")
+    If operador = "" Then
+        MsgBox "Debe ingresar un nombre de operador.", vbExclamation
+        Exit Sub
+    End If
+    
+    ' 2. Seleccionar archivo origen
+    archivoOrigen = Application.GetOpenFilename("Archivos de Excel (*.xlsx), *.xlsx", , "Seleccione el archivo origen")
+    If archivoOrigen = "Falso" Then Exit Sub
+    
+    ' 3. Definir libro principal
+    Set wbPrincipal = ThisWorkbook
+    Set wsPrincipal = wbPrincipal.Sheets("Hoja1") ' cambia el nombre de hoja si es necesario
+    
+    ' 4. Abrir archivo origen
+    Set wbOrigen = Workbooks.Open(archivoOrigen)
+    Set wsOrigen = wbOrigen.Sheets(1) ' puedes poner el nombre real de la hoja
+    
+    ' 5. Detectar últimas filas
+    ultimaFilaPrincipal = wsPrincipal.Cells(wsPrincipal.Rows.Count, "A").End(xlUp).Row
+    ultimaFilaOrigen = wsOrigen.Cells(wsOrigen.Rows.Count, "A").End(xlUp).Row
+    
+    ' 6. Recorremos archivo principal
+    For i = 2 To ultimaFilaPrincipal
+        pieza = wsPrincipal.Cells(i, "A").Value ' "Número Parte" en principal
+        
+        If pieza <> "" Then
+            ' Buscar NP en origen
+            filaEncontrada = Application.Match(pieza, wsOrigen.Range("A1:A" & ultimaFilaOrigen), 0)
+            
+            If Not IsError(filaEncontrada) Then
+                ' Extraer Batch
+                batch = wsOrigen.Cells(filaEncontrada, "B").Value ' Columna Batch en origen (ajusta si no es B)
+                
+                ' Procesar para quitar Y0 y dejar solo números
+                If InStr(batch, "0") > 0 Then
+                    batch = Mid(batch, InStr(batch, "0") + 1)
+                End If
+                
+                ' Guardar en columna B del principal
+                wsPrincipal.Cells(i, "B").Value = batch
+                ' Registrar nombre del operador en columna C
+                wsPrincipal.Cells(i, "C").Value = operador
+            Else
+                wsPrincipal.Cells(i, "B").Val
+
