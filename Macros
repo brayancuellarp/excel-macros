@@ -170,3 +170,258 @@ Sub LimpiarDatosTemporales(ws As Worksheet)
     
     On Error GoTo 0
 End Sub
+
+
+' Actualizacion
+
+Sub MacroOperador()
+    ' Macro para generar tabla temporal para que el operador QMS la llene
+    ' Trabaja solo con datos locales en Excel (sin conexión a BD)
+    ' Autor: Sistema MRB
+    ' Fecha: 2025
+    
+    Dim wsSource As Worksheet
+    Dim wsSAPERP As Worksheet
+    Dim wsTemp As Worksheet
+    Dim lastRowSource As Long
+    Dim lastRowSAPERP As Long
+    Dim i As Long, j As Long
+    Dim numeroParteValue As String
+    Dim sfcValue As String
+    Dim puValue As String
+    Dim descripcionValue As String
+    Dim costoValue As Double
+    Dim encontrado As Boolean
+    
+    On Error GoTo ErrorHandler
+    
+    ' Configurar hojas de trabajo locales
+    Set wsSource = ThisWorkbook.Worksheets("DatosQMS") ' Hoja con datos originales del TXT
+    Set wsSAPERP = ThisWorkbook.Worksheets("DatosSAPERP") ' Hoja con datos de SAPERP
+    Set wsTemp = ThisWorkbook.Worksheets("DatosTemporales")
+    
+    ' Limpiar hoja temporal
+    wsTemp.Cells.Clear
+    
+    ' Crear encabezados para la tabla temporal
+    wsTemp.Cells(1, 1).Value = "Número de Parte"
+    wsTemp.Cells(1, 2).Value = "Cantidad"
+    wsTemp.Cells(1, 3).Value = "Localidad (SAPME)"
+    wsTemp.Cells(1, 4).Value = "Precio Total"
+    wsTemp.Cells(1, 5).Value = "SFC"
+    wsTemp.Cells(1, 6).Value = "PU"
+    wsTemp.Cells(1, 7).Value = "Descripción (SAPERP)"
+    wsTemp.Cells(1, 8).Value = "Costo (SAPERP)"
+    wsTemp.Cells(1, 9).Value = "Batch Válido"
+    wsTemp.Cells(1, 10).Value = "Fecha Válida"
+    wsTemp.Cells(1, 11).Value = "Usuario Válido"
+    wsTemp.Cells(1, 12).Value = "Observaciones"
+    wsTemp.Cells(1, 13).Value = "Estado Validación"
+    
+    ' Formatear encabezados
+    With wsTemp.Range("A1:M1")
+        .Font.Bold = True
+        .Interior.Color = RGB(68, 114, 196)
+        .Font.Color = RGB(255, 255, 255)
+        .HorizontalAlignment = xlCenter
+    End With
+    
+    ' Obtener última fila con datos en hojas locales
+    lastRowSource = wsSource.Cells(wsSource.Rows.Count, 1).End(xlUp).Row
+    lastRowSAPERP = wsSAPERP.Cells(wsSAPERP.Rows.Count, 1).End(xlUp).Row
+    
+    Application.ScreenUpdating = False
+    Application.StatusBar = "Generando tabla temporal para operador..."
+    
+    ' Procesar cada registro y preparar tabla temporal
+    For i = 2 To lastRowSource ' Empezar desde fila 2 (encabezados en fila 1)
+        numeroParteValue = Trim(wsSource.Cells(i, 1).Value) ' Número de Parte
+        sfcValue = Trim(wsSource.Cells(i, 2).Value)         ' SFC
+        puValue = Trim(wsSource.Cells(i, 3).Value)          ' PU
+        encontrado = False
+        
+        If numeroParteValue <> "" Then
+            ' Buscar en hoja DatosSAPERP local
+            For j = 2 To lastRowSAPERP
+                If Trim(wsSAPERP.Cells(j, 1).Value) = numeroParteValue Then
+                    descripcionValue = wsSAPERP.Cells(j, 2).Value ' Columna B: Descripción
+                    costoValue = CDbl(wsSAPERP.Cells(j, 3).Value) ' Columna C: Costo
+                    encontrado = True
+                    Exit For
+                End If
+            Next j
+            
+            If Not encontrado Then
+                descripcionValue = "PENDIENTE VERIFICAR"
+                costoValue = 0
+            End If
+            
+            ' Llenar tabla temporal con datos base
+            wsTemp.Cells(i, 1).Value = numeroParteValue
+            wsTemp.Cells(i, 2).Value = 1 ' Cantidad por defecto
+            wsTemp.Cells(i, 3).Value = "PENDIENTE SAPME" ' Se llenará con Macro SAPME
+            wsTemp.Cells(i, 4).Value = 0 ' Se calculará con Macro SAPME
+            wsTemp.Cells(i, 5).Value = sfcValue
+            wsTemp.Cells(i, 6).Value = puValue
+            wsTemp.Cells(i, 7).Value = descripcionValue
+            wsTemp.Cells(i, 8).Value = costoValue
+            wsTemp.Cells(i, 9).Value = "PENDIENTE" ' Para que operador valide batch
+            wsTemp.Cells(i, 10).Value = "PENDIENTE" ' Para que operador valide fecha
+            wsTemp.Cells(i, 11).Value = "PENDIENTE" ' Para que operador valide usuario
+            wsTemp.Cells(i, 12).Value = "" ' Observaciones del operador
+            wsTemp.Cells(i, 13).Value = "EN PROCESO" ' Estado inicial
+            
+            ' Formatear celdas que debe llenar el operador (amarillo)
+            With wsTemp.Range("B" & i & ":D" & i) ' Cantidad, Localidad, Precio
+                .Interior.Color = RGB(255, 255, 0) ' Amarillo para campos editables
+            End With
+            
+            With wsTemp.Range("I" & i & ":L" & i) ' Validaciones y observaciones
+                .Interior.Color = RGB(255, 255, 0) ' Amarillo para campos editables
+            End With
+        End If
+        
+        ' Actualizar barra de progreso
+        Application.StatusBar = "Generando tabla temporal: " & i & " de " & lastRowSource
+    Next i
+    
+    ' Ajustar ancho de columnas
+    wsTemp.Columns.AutoFit
+    
+    ' Agregar filtros
+    wsTemp.Range("A1:M" & lastRowSource).AutoFilter
+    
+    Application.ScreenUpdating = True
+    Application.StatusBar = False
+    
+    MsgBox "Tabla temporal generada exitosamente." & vbCrLf & _
+           "Se crearon " & (lastRowSource - 1) & " registros para validación del operador QMS." & vbCrLf & vbCrLf & _
+           "INSTRUCCIONES:" & vbCrLf & _
+           "1. Revisar y completar campos en amarillo" & vbCrLf & _
+           "2. Ejecutar Macro SAPME para obtener localidades" & vbCrLf & _
+           "3. Validar batch, fechas y usuarios" & vbCrLf & _
+           "4. Agregar observaciones necesarias", vbInformation, "Macro Operador QMS"
+    
+    ' Activar hoja temporal para que operador pueda trabajar
+    wsTemp.Activate
+    wsTemp.Range("A1").Select
+    
+    Exit Sub
+    
+ErrorHandler:
+    Application.ScreenUpdating = True
+    Application.StatusBar = False
+    
+    MsgBox "Error en Macro Operador: " & Err.Description & vbCrLf & _
+           "Línea: " & Erl, vbCritical, "Error"
+End Sub
+
+
+
+
+Sub MacroSAPME()
+    ' Macro para recolectar datos de SAPME y calcular operaciones
+    ' Trabaja solo con datos locales en Excel (sin conexión a BD)
+    ' Autor: Sistema MRB
+    ' Fecha: 2025
+    
+    Dim wsTemp As Worksheet
+    Dim wsSAPME As Worksheet
+    Dim wsResult As Worksheet
+    Dim lastRowTemp As Long
+    Dim lastRowSAPME As Long
+    Dim i As Long, j As Long
+    Dim numeroParteValue As String
+    Dim localidadValue As String
+    Dim precioUnitario As Double
+    Dim cantidad As Double
+    Dim precioTotal As Double
+    Dim encontrado As Boolean
+    
+    On Error GoTo ErrorHandler
+    
+    ' Configurar hojas de trabajo locales
+    Set wsTemp = ThisWorkbook.Worksheets("DatosTemporales")
+    Set wsSAPME = ThisWorkbook.Worksheets("DatosSAPME") ' Hoja con datos de SAPME
+    Set wsResult = ThisWorkbook.Worksheets("ResultadosSAPME")
+    
+    ' Limpiar hoja de resultados
+    wsResult.Cells.Clear
+    wsResult.Cells(1, 1).Value = "Número de Parte"
+    wsResult.Cells(1, 2).Value = "Localidad"
+    wsResult.Cells(1, 3).Value = "Precio Unitario"
+    wsResult.Cells(1, 4).Value = "Cantidad"
+    wsResult.Cells(1, 5).Value = "Precio Total"
+    wsResult.Cells(1, 6).Value = "Estado"
+    
+    ' Obtener última fila con datos en ambas hojas
+    lastRowTemp = wsTemp.Cells(wsTemp.Rows.Count, 1).End(xlUp).Row
+    lastRowSAPME = wsSAPME.Cells(wsSAPME.Rows.Count, 1).End(xlUp).Row
+    
+    Application.ScreenUpdating = False
+    Application.StatusBar = "Procesando datos de SAPME..."
+    
+    ' Procesar cada registro buscando en datos locales
+    For i = 2 To lastRowTemp ' Empezar desde fila 2 (encabezados en fila 1)
+        numeroParteValue = Trim(wsTemp.Cells(i, 1).Value) ' Columna A: Número de Parte
+        cantidad = CDbl(wsTemp.Cells(i, 2).Value) ' Columna B: Cantidad
+        encontrado = False
+        
+        If numeroParteValue <> "" Then
+            ' Buscar en hoja DatosSAPME local
+            For j = 2 To lastRowSAPME
+                If Trim(wsSAPME.Cells(j, 1).Value) = numeroParteValue Then
+                    ' Datos encontrados en SAPME local
+                    localidadValue = wsSAPME.Cells(j, 2).Value ' Columna B: Localidad
+                    precioUnitario = CDbl(wsSAPME.Cells(j, 3).Value) ' Columna C: Precio
+                    
+                    ' Calcular precio total (dividir precio unitario por 100)
+                    precioUnitario = precioUnitario / 100
+                    precioTotal = precioUnitario * cantidad
+                    
+                    ' Escribir resultados
+                    wsResult.Cells(i, 1).Value = numeroParteValue
+                    wsResult.Cells(i, 2).Value = localidadValue
+                    wsResult.Cells(i, 3).Value = precioUnitario
+                    wsResult.Cells(i, 4).Value = cantidad
+                    wsResult.Cells(i, 5).Value = precioTotal
+                    wsResult.Cells(i, 6).Value = "PROCESADO"
+                    
+                    ' Actualizar datos temporales con la localidad obtenida
+                    wsTemp.Cells(i, 3).Value = localidadValue ' Columna C: Localidad
+                    wsTemp.Cells(i, 4).Value = precioTotal    ' Columna D: Precio Total
+                    
+                    encontrado = True
+                    Exit For
+                End If
+            Next j
+            
+            If Not encontrado Then
+                ' No encontrado en SAPME
+                wsResult.Cells(i, 1).Value = numeroParteValue
+                wsResult.Cells(i, 2).Value = "NO ENCONTRADO"
+                wsResult.Cells(i, 3).Value = 0
+                wsResult.Cells(i, 4).Value = cantidad
+                wsResult.Cells(i, 5).Value = 0
+                wsResult.Cells(i, 6).Value = "ERROR - NO ENCONTRADO"
+            End If
+        End If
+        
+        ' Actualizar barra de progreso
+        Application.StatusBar = "Procesando SAPME: " & i & " de " & lastRowTemp
+    Next i
+    
+    Application.ScreenUpdating = True
+    Application.StatusBar = False
+    
+    MsgBox "Proceso SAPME completado. Se procesaron " & (lastRowTemp - 1) & " registros.", vbInformation, "Macro SAPME"
+    
+    Exit Sub
+    
+ErrorHandler:
+    Application.ScreenUpdating = True
+    Application.StatusBar = False
+    
+    MsgBox "Error en Macro SAPME: " & Err.Description & vbCrLf & _
+           "Línea: " & Erl, vbCritical, "Error"
+End Sub
